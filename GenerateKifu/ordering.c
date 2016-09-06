@@ -14,82 +14,6 @@
 #include "move.h"
 #include "ordering.h"
 
-void sort_move_list(char *move_list, int eval_list[], int cnt)
-{
-	int i = 0;
-	int h = cnt * 10 / 13;
-	int temp, swaps;
-	char ctemp;
-
-	if (cnt == 1){ return; }
-	while (1)
-	{
-		swaps = 0;
-		for (i = 0; i + h < cnt; i++)
-		{
-			if (eval_list[i] < eval_list[i + h])
-			{
-				ctemp = move_list[i];
-				move_list[i] = move_list[i + h];
-				move_list[i + h] = ctemp;
-				temp = eval_list[i];
-				eval_list[i] = eval_list[i + h];
-				eval_list[i + h] = temp;
-				swaps++;
-			}
-		}
-		if (h == 1)
-		{
-			if (swaps == 0)
-			{
-				break;
-			}
-		}
-		else
-		{
-			h = h * 10 / 13;
-		}
-	}
-}
-
-void sort_move_list(MOVELIST *move_list, int eval_list[], int cnt)
-{
-	int i = 0;
-	int h = cnt * 10 / 13;
-	int temp, swaps;
-	MOVELIST ctemp;
-
-	if (cnt == 1){ return; }
-	while (1)
-	{
-		swaps = 0;
-		for (i = 0; i + h < cnt; i++)
-		{
-			if (eval_list[i] < eval_list[i + h])
-			{
-				ctemp = move_list[i];
-				move_list[i] = move_list[i + h];
-				move_list[i + h] = ctemp;
-				temp = eval_list[i];
-				eval_list[i] = eval_list[i + h];
-				eval_list[i + h] = temp;
-				swaps++;
-			}
-		}
-		if (h == 1)
-		{
-			if (swaps == 0)
-			{
-				break;
-			}
-		}
-		else
-		{
-			h = h * 10 / 13;
-		}
-	}
-}
-
 /* コムソート */
 void SortListUseTable(MOVELIST *pos_list, INT32 move_list[], INT32 cnt)
 {
@@ -129,51 +53,7 @@ void SortListUseTable(MOVELIST *pos_list, INT32 move_list[], INT32 cnt)
 	}
 }
 
-/* コムソート */
-void SortListUseTable(INT8 *pos_list, INT32 move_list[], UINT64 rev_list[], INT32 cnt)
-{
-	int i = 0;
-	int h = cnt * 10 / 13;
-	int temp, swaps;
-	char move_temp;
-	UINT64 rev_temp;
 
-	if (cnt <= 1){ return; }
-	while (1)
-	{
-		swaps = 0;
-		for (i = 0; i + h < cnt; i++)
-		{
-			if (move_list[i] > move_list[i + h])
-			{
-				temp = move_list[i];
-				move_list[i] = move_list[i + h];
-				move_list[i + h] = temp;
-
-				move_temp = pos_list[i];
-				pos_list[i] = pos_list[i + h];
-				pos_list[i + h] = move_temp;
-
-				rev_temp = rev_list[i];
-				rev_list[i] = rev_list[i + h];
-				rev_list[i + h] = rev_temp;
-
-				swaps++;
-			}
-		}
-		if (h == 1)
-		{
-			if (swaps == 0)
-			{
-				break;
-			}
-		}
-		else
-		{
-			h = h * 10 / 13;
-		}
-	}
-}
 
 int get_corner_stability(UINT64 color){
 
@@ -305,8 +185,28 @@ void SortFastfirst(MoveList *movelist, UINT64 bk, UINT64 wh)
 		move_w = wh ^ (iter->move.rev);
 		CreateMoves(move_w, move_b, &n_moves_wh);
 		iter->move.score = (n_moves_wh << 4) - get_corner_stability(bk);
+		//iter->move.score += CountBit(GetPotentialMoves(move_w, move_b, (~(bk | wh)) ^ (1ULL << iter->move.pos)));
 	}
 
+	sort_movelist_score_ascending(movelist);
+}
+
+void SortPotentionalFastfirst(MoveList *movelist, UINT64 bk, UINT64 wh, UINT64 blank)
+{
+	MoveList *iter;
+	INT32 score;
+	UINT64 move_b, move_w;
+
+	for (iter = movelist->next; iter != NULL; iter = iter->next)
+	{
+		score = 0;
+		move_b = bk ^ ((1ULL << (iter->move.pos)) | iter->move.rev);
+		move_w = wh ^ (iter->move.rev);
+		/* 敵の着手可能数を取得 */
+		score += CountBit(GetPotentialMoves(move_w, move_b, blank ^ (1ULL << iter->move.pos)));
+		iter->move.score = score;
+	}
+	/* 敵の得点の少ない順にソート */
 	sort_movelist_score_ascending(movelist);
 }
 
@@ -334,14 +234,14 @@ void SortMoveListMiddle(
 			move_b = bk ^ ((1ULL << (iter->move.pos)) | iter->move.rev);
 			move_w = wh ^ (iter->move.rev);
 
-			score = -OrderingAlphaBeta(move_w, move_b, 6 - searched, empty - 1, color ^ 1,
+			score = -AB_SearchNoPV(move_w, move_b, 6 - searched, empty - 1, color ^ 1,
 				-NEGAMAX, -NEGAMIN, 0);
 			iter->move.score = score;
 		}
 		/* 自分の得点の多い順にソート */
 		sort_movelist_score_descending(movelist);
 	}
-	else if (g_empty - empty == 6){
+	else if (g_empty - empty == 6 && g_limitDepth >= 14){
 		for (iter = movelist->next; iter != NULL; iter = iter->next)
 		{
 			move_b = bk ^ ((1ULL << (iter->move.pos)) | iter->move.rev);
@@ -416,7 +316,7 @@ void SortMoveListEnd(
 		iter->move.score = 0;
 		move_b = bk ^ ((1ULL << iter->move.pos) | iter->move.rev);
 		move_w = wh ^ iter->move.rev;
-		key = KEY_HASH_MACRO(move_w, move_b);
+		key = KEY_HASH_MACRO(move_w, move_b, color ^ 1);
 
 		// 相手を全滅させる手か
 		if (move_w == 0) {
@@ -424,12 +324,17 @@ void SortMoveListEnd(
 			continue;
 		}
 		// 第一ハッシュテーブル(deepest)に登録されている手か 
-		else if (hash->entry[key].deepest.bk == move_w &&
-			hash->entry[key].deepest.wh == move_b) iter->move.score += (1 << 8);
+		else if (hash->entry[key].deepest.bk == move_w && 
+			     hash->entry[key].deepest.wh == move_b)
+		{
+			iter->move.score += (1 << 8);
+		}
 		// 第二ハッシュテーブル(newest)に登録されている手か 
 		else if (hash->entry[key].newest.bk == move_w &&
-			hash->entry[key].newest.wh == move_b) iter->move.score += (1 << 7);
-
+			     hash->entry[key].newest.wh == move_b)
+		{
+			iter->move.score += (1 << 7);
+		}
 		blank = ~(move_w | move_b);
 
 		// 着手可能数を計算
@@ -442,14 +347,16 @@ void SortMoveListEnd(
 		iter->move.score -= (CountBit(GetPotentialMoves(move_w, move_b, blank))) * (1 << 5);
 
 		// 浅い探索による評価値
+#if 1
 		if (sort_depth > 0)
 		{
 			INT32 temp_eval;
 			if (HashGet(hash, key, move_w, move_b)) iter->move.score += (1 << 15); // 着手した後の局面が置換表に登録されていたら加算
-			temp_eval = -OrderingAlphaBeta(move_w, move_b, sort_depth, empty - 1, color ^ 1,
+			temp_eval = -AB_SearchNoPV(move_w, move_b, sort_depth, empty - 1, color ^ 1,
 				NEGAMIN, NEGAMAX, 0);
 			iter->move.score += (temp_eval) * (1 << 2);
 		}
+#endif
 	}
 
 	/* 得点の高い順にソート */
@@ -537,14 +444,20 @@ void SortMoveListBest(
 	INT32 score;
 	UINT32 cnt = 0;
 	UINT64 move_b, move_w;
+	INT32 selectivity = g_max_cut_table_size;
+	PVLINE line;
+
+	g_empty = empty;
+	g_limitDepth = 9;
 
 	for (iter = movelist->next; iter != NULL; iter = iter->next)
 	{
 		move_b = bk ^ ((1ULL << (iter->move.pos)) | iter->move.rev);
 		move_w = wh ^ (iter->move.rev);
 
-		HashClear(g_hash);
-		score = -PVS_SearchDeep(move_w, move_b, 7, empty - 1, color ^ 1, g_hash, NEGAMIN, NEGAMAX, 0);
+		//HashClear(g_hash);
+		score = -PVS_SearchDeep(move_w, move_b, g_limitDepth, empty - 1, color ^ 1, g_hash,
+			NEGAMIN, NEGAMAX, 0, &selectivity, &line);
 		// InitIndexBoard(move_w, move_b);
 		// score = -Evaluation(g_board, move_w, move_b, color ^ 1, 59 - (empty - 1));
 		iter->move.score = score;

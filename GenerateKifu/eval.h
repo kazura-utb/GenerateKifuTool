@@ -5,6 +5,7 @@
 ****************************************************************************/
 
 #include "stdafx.h"
+#include "empty.h"
 
 #pragma once
 
@@ -97,7 +98,13 @@ extern UINT64 h6;			/* h6 */
 extern UINT64 h7;			/* h7 */
 extern UINT64 h8;			/* h8 */
 
-extern double eval_sum;
+extern float eval_sum;
 
 INT32 Evaluation(UINT8 *board, UINT64 b_board, UINT64 w_board, UINT32 color, UINT32 stage);
+INT32 GetExactScore(UINT64 bk, UINT64 wh, INT32 empty);
+INT32 GetWinLossScore(UINT64 bk, UINT64 wh, INT32 empty);
 BOOL LoadData(void);
+
+
+/* function empty 0 or end leave empty */
+extern INT32(*GetEndScore[])(UINT64 bk, UINT64 wh, INT32 empty);

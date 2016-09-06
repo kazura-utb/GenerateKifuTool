@@ -176,7 +176,7 @@ int encode(UCHAR *encodeData, CodeInfo *codeInfo, UCHAR *data, int dataLen) {
 }
 #endif
 
-int decode(UCHAR *decodeData, int maxLen, UCHAR *data, int dataLen, TreeNode *nodes, int root)
+INT64 decode(UCHAR *decodeData, INT64 maxLen, UCHAR *data, INT64 dataLen, TreeNode *nodes, int root)
 {
 	int nodeIndex = root;
 	int cnt = 0, byteCounter = 0;
@@ -207,9 +207,9 @@ int decode(UCHAR *decodeData, int maxLen, UCHAR *data, int dataLen, TreeNode *no
 
 }
 
-UCHAR *DecodeBookData(INT32 *decodeDataLen_p, char *filename)
+UCHAR *DecodeBookData(INT64 *decodeDataLen_p, char *filename)
 {
-	int readSize, decodeDataLen;
+	INT64 readSize, decodeDataLen;
 	FILE *fp;
 
 	if (fopen_s(&fp, filename, "rb") != 0 || fp == NULL){
@@ -262,9 +262,10 @@ UCHAR *DecodeBookData(INT32 *decodeDataLen_p, char *filename)
 
 }
 
-UCHAR *DecodeEvalData(INT32 *decodeDataLen_p, char *filename)
+UCHAR *DecodeEvalData(INT64 *decodeDataLen_p, char *filename)
 {
-	int i, readSize, decodeDataLen, decodeDataLenSum;
+	int i;
+	INT64 readSize, decodeDataLen, decodeDataLenSum;
 	UCHAR *data;
 	UCHAR *decodeData;
 	FILE *fp;
@@ -273,7 +274,7 @@ UCHAR *DecodeEvalData(INT32 *decodeDataLen_p, char *filename)
 	data = (UCHAR *)malloc(EVAL_DATA_SIZE);
 	if (data == NULL) return NULL;
 
-	decodeData = (UCHAR *)malloc(EVAL_DECODE_DATA_SIZE * 121);
+	decodeData = (UCHAR *)malloc(EVAL_DECODE_DATA_SIZE * 61);
 	if (decodeData == NULL) return NULL;
 
 	if (fopen_s(&fp, filename, "rb") != 0 || fp == NULL){
@@ -285,7 +286,7 @@ UCHAR *DecodeEvalData(INT32 *decodeDataLen_p, char *filename)
 	i = 0;
 	decodeDataLenSum = 0;
 
-	while (i < 120){
+	while (i < 60){
 		readSize = fread(data, sizeof(UCHAR), 2 * sizeof(int) + 2, fp);
 		// 木データのサイズ
 		int nodesLen = (data[TREE_SIZE_ADDR] << 8)
@@ -313,6 +314,7 @@ UCHAR *DecodeEvalData(INT32 *decodeDataLen_p, char *filename)
 		i++;
 	}
 
+	fclose(fp);
 	free(data);
 
 	*decodeDataLen_p = decodeDataLenSum;
@@ -321,21 +323,20 @@ UCHAR *DecodeEvalData(INT32 *decodeDataLen_p, char *filename)
 
 }
 
-BOOL OpenMpcInfoData(char *filename){
-
+BOOL OpenMpcInfoData(MPCINFO *p_info, INT32 info_len, char *filename){
+	
 	FILE *fp;
 
 	if (fopen_s(&fp, filename, "r") || fp == NULL){
 		return FALSE;
 	}
 
-	memset(mpcInfo, 0, sizeof(mpcInfo));
+	memset(p_info, 0, info_len);
 
-	for (int j = 0; j < 22; j++){
-		fscanf_s(fp, "%d", &(mpcInfo[j].depth));
-		fscanf_s(fp, "%d", &(mpcInfo[j].offset));
-		fscanf_s(fp, "%d", &(mpcInfo[j].deviation));
-		//mpcInfo[j].deviation *= 1.2; // threshould
+	for (int j = 0; j < info_len; j++){
+		fscanf_s(fp, "%d", &(p_info[j].depth));
+		fscanf_s(fp, "%d", &(p_info[j].offset));
+		fscanf_s(fp, "%d", &(p_info[j].deviation));
 	}
 
 	fclose(fp);

@@ -5,26 +5,29 @@
 ****************************************************************************/
 
 #include "stdafx.h"
+#include <time.h>
 #include "board.h"
 #include "move.h"
 #include "book.h"
 #include "eval.h"
 #include "hash.h"
+#include "mt.h"
 #include "bit64.h"
 #include "cpu.h"
 #include "rev.h"
-#include "mt.h"
 
-#include <time.h>
+#define KZ_EXPORT __declspec(dllexport)
 
 BOOL m_BookFlag;
+
+int g_func_count = 0;
 
 /***************************************************************************
 * Name  : KZ_LibInit
 * Brief : 初期化処理を行う
 * Return: TRUE/FALSE
 ****************************************************************************/
-BOOL KZ_LibInit()
+KZ_EXPORT BOOL KZ_LibInit()
 {
 	BOOL result;
 	
@@ -38,17 +41,18 @@ BOOL KZ_LibInit()
 	}
 
 	/* pos番号-->指し手文字列変換テーブル */
-	char cordinate[4];
+	char cordinate[6];
 	/* 指し手の座標表記変換用 */
 	for (int i = 0; i < 64; i++)
 	{
-		sprintf_s(cordinate, "%c%d", i / 8 + 'a', (i % 8) + 1);
-		strcpy_s(g_cordinates_table[i], 4, cordinate);
+		sprintf_s(cordinate, 4, "%c%d", (i / 8) + 'a', (i % 8) + 1);
+		strcpy_s(g_cordinates_table[i], sizeof(g_cordinates_table[i]), cordinate);
 	}
 
 	edge_stability_init();
 
 	init_genrand((unsigned long)time(NULL));
+	//InitHashBoard();
 
 	return result;
 }
@@ -58,7 +62,7 @@ BOOL KZ_LibInit()
 * Brief : 着手可能手を列挙する
 * Return: 着手可能位置のビット列
 ****************************************************************************/
-UINT64 KZ_GetEnumMove(UINT64 bk_p, UINT64 wh_p, UINT32 *p_count_p)
+KZ_EXPORT UINT64 KZ_GetEnumMove(UINT64 bk_p, UINT64 wh_p, UINT32 *p_count_p)
 {
 	return CreateMoves(bk_p, wh_p, p_count_p);
 }
@@ -68,7 +72,7 @@ UINT64 KZ_GetEnumMove(UINT64 bk_p, UINT64 wh_p, UINT32 *p_count_p)
 * Brief : 変化する箇所を計算し、ビット列にして返却する
 * Return: 変化する箇所のビット列
 ****************************************************************************/
-UINT64 KZ_GetBoardChangeInfo(UINT64 bk, UINT64 wh, INT32 move)
+KZ_EXPORT UINT64 KZ_GetBoardChangeInfo(UINT64 bk, UINT64 wh, INT32 move)
 {
 	return GetRev[move](bk, wh);
 }
@@ -81,7 +85,7 @@ UINT64 KZ_GetBoardChangeInfo(UINT64 bk, UINT64 wh, INT32 move)
 *         cpuConfig CPU設定クラス
 * Return: 着手可能位置のビット列
 ****************************************************************************/
-UINT64 KZ_GetCpuMove(UINT64 bk, UINT64 wh, CPUCONFIG *cpuConfig)
+KZ_EXPORT UINT64 KZ_GetCpuMove(UINT64 bk, UINT64 wh, CPUCONFIG *cpuConfig)
 {
 	UINT64 move = MOVE_NONE;
 	UINT32 emptyNum;
@@ -90,7 +94,8 @@ UINT64 KZ_GetCpuMove(UINT64 bk, UINT64 wh, CPUCONFIG *cpuConfig)
 	// カウントリセット(カウントリセットは以降の処理との順番入れ替え×)
 	g_countNode = 0;
 	// CPUメッセージ初期化
-	g_set_message_funcptr("");
+	//g_set_message_funcptr[0](" ");
+	//g_set_message_funcptr[1](" ");
 
 	emptyNum = CountBit(~(bk | wh));
 	turn = 60 - emptyNum;
@@ -137,7 +142,7 @@ UINT64 KZ_GetCpuMove(UINT64 bk, UINT64 wh, CPUCONFIG *cpuConfig)
 * Brief : 直前のCPUの着手に対応する評価値を取得する
 * Return: CPUの算出した直近評価値
 ****************************************************************************/
-INT32 KZ_GetLastEvaluation()
+KZ_EXPORT INT32 KZ_GetLastEvaluation()
 {
 	return g_evaluation;
 }
@@ -147,7 +152,7 @@ INT32 KZ_GetLastEvaluation()
 * Brief : 直前のCPUの着手が定石手かどうかを取得する
 * Return: CPUの算出した直近評価値
 ****************************************************************************/
-BOOL KZ_GetIsUseBook()
+KZ_EXPORT BOOL KZ_GetIsUseBook()
 {
 	return g_book_done;
 }
@@ -158,7 +163,7 @@ BOOL KZ_GetIsUseBook()
 * Brief : 探索済みのノード数を取得する
 * Return: CPUが探索したノード数
 ****************************************************************************/
-UINT64 KZ_GetCountNode()
+KZ_EXPORT UINT64 KZ_GetCountNode()
 {
 	return g_countNode;
 }
@@ -168,7 +173,7 @@ UINT64 KZ_GetCountNode()
 * Brief : AIスレッドに中断命令を送信
 * Return: 着手可能位置のビット列
 ****************************************************************************/
-void KZ_SendAbort()
+KZ_EXPORT void KZ_SendAbort()
 {
 	SetAbortFlag();
 }
@@ -179,16 +184,27 @@ void KZ_SendAbort()
 * Args  : bit １が立っているビットを数える対象のビット列
 * Return: １が立っているビット数
 ****************************************************************************/
-UINT32 KZ_CountBit(UINT64 bit)
+KZ_EXPORT UINT32 KZ_CountBit(UINT64 bit)
 {
 	return CountBit(bit);
 }
 
 /***************************************************************************
+* Name  : KZ_EntryFunction
+* Brief : AIのメッセージを設定するデリゲートをC側に渡す
+* Args  : デリゲートのポインタ
+****************************************************************************/
+//KZ_EXPORT void KZ_EntryFunction(SetMessageToGUI ptr)
+//{
+//	g_set_message_funcptr[g_func_count] = ptr;
+//	g_func_count++;
+//}
+
+/***************************************************************************
 * Name  : KZ_ReleaseHash
 * Brief : ハッシュテーブルを解放する
 ****************************************************************************/
-void KZ_ReleaseHash()
+KZ_EXPORT void KZ_ReleaseHash()
 {
 	if (g_hash != NULL)
 	{
@@ -201,7 +217,7 @@ void KZ_ReleaseHash()
 * Name  : KZ_ReleaseBook
 * Brief : 定石データを解放する
 ****************************************************************************/
-void KZ_ReleaseBook()
+KZ_EXPORT void KZ_ReleaseBook()
 {
 	if (g_bookTree.child != NULL)
 	{

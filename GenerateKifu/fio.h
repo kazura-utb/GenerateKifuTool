@@ -21,6 +21,6 @@ typedef struct{
 	int right;
 }TreeNode;
 
-UCHAR *DecodeBookData(INT32 *decodeDataLen_p, char *filename);
-UCHAR *DecodeEvalData(INT32 *decodeDataLen_p, char *filename);
-BOOL OpenMpcInfoData(char *filename);
+UCHAR *DecodeBookData(INT64 *decodeDataLen_p, char *filename);
+UCHAR *DecodeEvalData(INT64 *decodeDataLen_p, char *filename);
+BOOL OpenMpcInfoData(MPCINFO *p_info, INT32 info_len, char *filename);

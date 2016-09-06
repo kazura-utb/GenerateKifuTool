@@ -4,10 +4,15 @@
 * Date  : 2016/02/01
 ****************************************************************************/
 #include "stdafx.h"
+#include <math.h>
+#include "mt.h"
 #include "bit64.h"
 #include "board.h"
 #include "move.h"
 #include "rev.h"
+#include "eval.h"
+#include "cpu.h"
+#include "ordering.h"
 
 typedef void(*INIT_MMX)(void);
 
@@ -110,4 +115,125 @@ UINT64 GetPotentialMoves(UINT64 P, UINT64 O, UINT64 blank)
 		| GetSomePotentialMoves(O & 0x007E7E7E7E7E7E00ull, 7)   // diagonals
 		| GetSomePotentialMoves(O & 0x007E7E7E7E7E7E00ull, 9))
 		& blank; // mask with empties
+}
+
+
+BOOL boardMoves(UINT64 *bk, UINT64 *wh, UINT64 move, INT32 pos)
+{
+
+	if ((*bk & move) || (*wh & move))
+	{
+		return FALSE;
+	}
+
+	UINT64 rev = GetRev[pos](*bk, *wh);
+
+	if (rev == 0)
+	{
+		return FALSE;
+	}
+
+	*bk ^= (rev | move);
+	*wh ^= rev;
+
+	return TRUE;
+
+}
+
+/***************************************************************************
+* Name  : RandomMove
+* Brief : 評価値による重み付けランダム着手
+****************************************************************************/
+UINT64 RandomMove(UINT64 bk, UINT64 wh, UINT32 empty, UINT32 color)
+{
+	MoveList *iter, movelist[36];
+	UINT32 move_cnt;
+	UINT64 moves = CreateMoves(bk, wh, &move_cnt);
+	if (moves == 0) return 0xFFFF;
+
+	// 評価値でソート
+	StoreMovelist(movelist, bk, wh, moves);
+	SortMoveListBest(movelist, bk, wh, g_hash, empty,
+		NEGAMIN, NEGAMAX, color);
+
+	// 最悪手にリスト遷移
+	for (iter = movelist->next; iter->next != NULL; iter = iter->next);
+
+	// 最悪手の絶対値スコアの2倍の値を全ての評価値に加算してその総和を求める
+	double rate[36];
+	INT64 nom_score_sum = 0;
+	INT64 abs_val = (INT64)(llabs(iter->move.score) * 1.2);
+
+	// 最悪手の評価が0に近い場合、最悪手がほとんど打たれなくなるため対策
+	if (abs_val < 4 * EVAL_ONE_STONE)
+	{
+		abs_val = 4 * EVAL_ONE_STONE;
+	}
+
+	for (iter = movelist->next; iter != NULL; iter = iter->next)
+	{
+		iter->move.score += abs_val;
+		nom_score_sum += iter->move.score;
+	}
+
+	// 着手確率を計算
+	iter = movelist->next;
+	for (int i = 0; iter != NULL; iter = iter->next)
+	{
+		rate[i++] = iter->move.score / (double)nom_score_sum;
+	}
+
+	double rnd = genrand_real1();
+	INT32 pos = -1;
+	iter = movelist->next;
+	for (int j = 0; j < (INT32)move_cnt; j++, iter = iter->next)
+	{
+		if (rate[j] >= rnd)
+		{
+			pos = iter->move.pos;
+			break;
+		}
+		rnd -= rate[j];
+	}
+
+	if (pos == -1)
+	{
+		// 丸め誤差によるエラーだがこのケースは確率が極小なので、適当に最善手を選択
+		pos = movelist->next->move.pos;
+	}
+
+	return 1ULL << pos;
+}
+
+
+/***************************************************************************
+* Name  : RandomMove
+* Brief :
+****************************************************************************/
+UINT64 SemiBestMove(UINT64 bk, UINT64 wh, UINT32 empty, UINT32 color)
+{
+	MoveList movelist[36];
+	UINT32 move_cnt;
+	UINT64 moves;
+
+	g_empty = empty;
+	moves = CreateMoves(bk, wh, &move_cnt);
+	StoreMovelist(movelist, bk, wh, moves);
+
+	if (move_cnt == 1)
+	{
+		return 1ULL << (movelist->next->move.pos);
+	}
+
+	SortMoveListBest(movelist, bk, wh, g_hash, empty,
+		NEGAMIN, NEGAMAX, color);
+
+	// 次善手と最善手との誤差が-2以下の時のみ次善手を打つ
+	if (movelist->next->move.score - movelist->next->next->move.score < 20000)
+	{
+		return 1ULL << (movelist->next->next->move.pos);
+	}
+
+	return 1ULL << (movelist->next->move.pos);
+
 }
