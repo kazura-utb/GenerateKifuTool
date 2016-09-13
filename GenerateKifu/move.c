@@ -207,7 +207,7 @@ UINT64 RandomMove(UINT64 bk, UINT64 wh, UINT32 empty, UINT32 color)
 
 
 /***************************************************************************
-* Name  : RandomMove
+* Name  : SemiBestMove
 * Brief :
 ****************************************************************************/
 UINT64 SemiBestMove(UINT64 bk, UINT64 wh, UINT32 empty, UINT32 color)
@@ -229,7 +229,7 @@ UINT64 SemiBestMove(UINT64 bk, UINT64 wh, UINT32 empty, UINT32 color)
 		NEGAMIN, NEGAMAX, color);
 
 	// ŽŸ‘PŽè‚ÆÅ‘PŽè‚Æ‚ÌŒë·‚ª-2ˆÈ‰º‚ÌŽž‚Ì‚ÝŽŸ‘PŽè‚ð‘Å‚Â
-	if (movelist->next->move.score - movelist->next->next->move.score < 20000)
+	if (movelist->next->move.score - movelist->next->next->move.score <= 10000)
 	{
 		return 1ULL << (movelist->next->next->move.pos);
 	}
