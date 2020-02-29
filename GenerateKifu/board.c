@@ -8,7 +8,7 @@
 #include "eval.h"
 #include "bit64.h"
 
-#ifdef HAS_CPU_64
+#if 1
 #define	packA1A8(X)	((((X) & 0x0101010101010101ULL) * 0x0102040810204080ULL) >> 56)
 #define	packH1H8(X)	((((X) & 0x8080808080808080ULL) * 0x0002040810204081ULL) >> 56)
 #else
@@ -18,7 +18,7 @@
 
 UCHAR g_board[64];
 
-UINT8 board_parity[] =
+const UINT8 board_parity[] =
 {
 	0, 0, 0, 0, 1, 1, 1, 1,
 	0, 0, 0, 0, 1, 1, 1, 1,
@@ -30,7 +30,7 @@ UINT8 board_parity[] =
 	2, 2, 2, 2, 3, 3, 3, 3
 };
 
-UINT8 board_parity_bit[] =
+const UINT8 board_parity_bit[] =
 {
 	1, 1, 1, 1, 2, 2, 2, 2,
 	1, 1, 1, 1, 2, 2, 2, 2,
@@ -42,7 +42,7 @@ UINT8 board_parity_bit[] =
 	4, 4, 4, 4, 8, 8, 8, 8
 };
 
-UINT64 quad_parity_bitmask[] = 
+const UINT64 quad_parity_bitmask[] =
 {
 	0x000000000F0F0F0FULL,
 	0x00000000F0F0F0F0ULL,
@@ -577,4 +577,13 @@ UINT64 symmetry_w(UINT64 board)
 		board & 0xf0f0f0f00f0f0f0f;
 
 	return board;
+}
+
+
+void swap(UINT64 *bk, UINT64 *wh)
+{
+	UINT64 temp;
+	temp = *bk;
+	*bk = *wh;
+	*wh = temp;
 }

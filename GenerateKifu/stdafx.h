@@ -5,14 +5,18 @@
 
 #pragma once
 
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <crtdbg.h>
+
 #include "targetver.h"
 
-#include <stdio.h>
-#include <tchar.h>
+#define WIN32_LEAN_AND_MEAN             // Windows ヘッダーから使用されていない部分を除外します。
+// Windows ヘッダー ファイル:
+#include <windows.h>
 
 
 
 // TODO: プログラムに必要な追加ヘッダーをここで参照してください。
-#define WIN32_LEAN_AND_MEAN             // Windows ヘッダーから使用されていない部分を除外します。
-// Windows ヘッダー ファイル:
-#include <windows.h>

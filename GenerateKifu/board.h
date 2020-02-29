@@ -13,9 +13,9 @@
 #define BK_FIRST 34628173824
 #define WH_FIRST 68853694464
 
-extern UINT8 board_parity[];
-extern UINT8 board_parity_bit[];
-extern UINT64 quad_parity_bitmask[];
+extern const UINT8 board_parity[];
+extern const UINT8 board_parity_bit[];
+extern const UINT64 quad_parity_bitmask[];
 extern const INT32 NWS_STABILITY_THRESHOLD[];
 extern const INT32 PVS_STABILITY_THRESHOLD[];
 
@@ -40,6 +40,7 @@ void create_quad_parity(UINT32 *q_parity, UINT64 blank);
 void InitIndexBoard(UINT64 bk, UINT64 wh);
 void Swap(UINT64 *bk, UINT64 *wh);
 void create_empty_list(EmptyList *start, UINT64 blank);
+void swap(UINT64 *bk, UINT64 *wh);
 
 UINT64 rotate_90(UINT64 board);
 UINT64 rotate_180(UINT64 board);

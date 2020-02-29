@@ -4,15 +4,10 @@
 * Date  : 2016/02/01
 ****************************************************************************/
 #include "stdafx.h"
-#include <math.h>
-#include "mt.h"
 #include "bit64.h"
 #include "board.h"
 #include "move.h"
 #include "rev.h"
-#include "eval.h"
-#include "cpu.h"
-#include "ordering.h"
 
 typedef void(*INIT_MMX)(void);
 
@@ -108,13 +103,50 @@ UINT64 GetSomePotentialMoves(const unsigned long long P, const int dir)
 * @param O bitboard with opponent's discs.
 * @return all potential moves in a 64-bit unsigned integer.
 */
-UINT64 GetPotentialMoves(UINT64 P, UINT64 O, UINT64 blank)
+UINT64 GetPotentialMoves(UINT64 P, UINT64 O)
 {
 	return (GetSomePotentialMoves(O & 0x7E7E7E7E7E7E7E7Eull, 1) // horizontal
 		| GetSomePotentialMoves(O & 0x00FFFFFFFFFFFF00ull, 8)   // vertical
 		| GetSomePotentialMoves(O & 0x007E7E7E7E7E7E00ull, 7)   // diagonals
 		| GetSomePotentialMoves(O & 0x007E7E7E7E7E7E00ull, 9))
-		& blank; // mask with empties
+		& (~(P | O)); // mask with empties
+}
+
+
+
+INT32 bit_weighted_count(const UINT64 v)
+{
+	return CountBit(v) + CountBit(v & 0x8100000000000081ULL);
+}
+
+/**
+ * @brief Get potential mobility.
+ *
+ * Count the list of empty squares in contact of a player square.
+ *
+ * @param P bitboard with player's discs.
+ * @param O bitboard with opponent's discs.
+ * @return a count of potential moves.
+ */
+INT32 get_potential_mobility(const UINT64 P, const UINT64 O)
+{
+	return bit_weighted_count(GetPotentialMoves(P, O));
+}
+
+/**
+ * @brief Count legal moves.
+ *
+ * Compute mobility, ie the number of legal moves.
+ *
+ * @param P bitboard with player's discs.
+ * @param O bitboard with opponent's discs.
+ * @return a count of all legal moves.
+ */
+INT32 get_weighted_mobility(const UINT64 P, const UINT64 O)
+{
+	INT32 temp;
+	UINT64 moves = CreateMoves(P, O, &temp);
+	return temp + CountBit(moves & 0x8100000000000081ULL);
 }
 
 
@@ -140,100 +172,60 @@ BOOL boardMoves(UINT64 *bk, UINT64 *wh, UINT64 move, INT32 pos)
 
 }
 
-/***************************************************************************
-* Name  : RandomMove
-* Brief : 評価値による重み付けランダム着手
-****************************************************************************/
-UINT64 RandomMove(UINT64 bk, UINT64 wh, UINT32 empty, UINT32 color)
+
+void GenerateMoveList(MoveList *moves, UINT64 blank)
 {
-	MoveList *iter, movelist[36];
-	UINT32 move_cnt;
-	UINT64 moves = CreateMoves(bk, wh, &move_cnt);
-	if (moves == 0) return 0xFFFF;
+	MoveList *list = moves + 1, *previous = moves;
 
-	// 評価値でソート
-	StoreMovelist(movelist, bk, wh, moves);
-	SortMoveListBest(movelist, bk, wh, g_hash, empty,
-		NEGAMIN, NEGAMAX, color);
-
-	// 最悪手にリスト遷移
-	for (iter = movelist->next; iter->next != NULL; iter = iter->next);
-
-	// 最悪手の絶対値スコアの2倍の値を全ての評価値に加算してその総和を求める
-	double rate[36];
-	INT64 nom_score_sum = 0;
-	INT64 abs_val = (INT64)(llabs(iter->move.score) * 1.2);
-
-	// 最悪手の評価が0に近い場合、最悪手がほとんど打たれなくなるため対策
-	if (abs_val < 4 * EVAL_ONE_STONE)
+	while (blank)
 	{
-		abs_val = 4 * EVAL_ONE_STONE;
+		list->move.pos = CountBit((~blank) & (blank - 1));
+		previous = previous->next = list;
+		blank ^= 1ULL << list->move.pos;
+		list++;
 	}
+	previous->next = NULL;
 
-	for (iter = movelist->next; iter != NULL; iter = iter->next)
-	{
-		iter->move.score += abs_val;
-		nom_score_sum += iter->move.score;
-	}
-
-	// 着手確率を計算
-	iter = movelist->next;
-	for (int i = 0; iter != NULL; iter = iter->next)
-	{
-		rate[i++] = iter->move.score / (double)nom_score_sum;
-	}
-
-	double rnd = genrand_real1();
-	INT32 pos = -1;
-	iter = movelist->next;
-	for (int j = 0; j < (INT32)move_cnt; j++, iter = iter->next)
-	{
-		if (rate[j] >= rnd)
-		{
-			pos = iter->move.pos;
-			break;
-		}
-		rnd -= rate[j];
-	}
-
-	if (pos == -1)
-	{
-		// 丸め誤差によるエラーだがこのケースは確率が極小なので、適当に最善手を選択
-		pos = movelist->next->move.pos;
-	}
-
-	return 1ULL << pos;
 }
 
 
-/***************************************************************************
-* Name  : SemiBestMove
-* Brief :
-****************************************************************************/
-UINT64 SemiBestMove(UINT64 bk, UINT64 wh, UINT32 empty, UINT32 color)
+MoveList *UpdateMoveList(MoveList *moves, INT32 pos)
 {
-	MoveList movelist[36];
-	UINT32 move_cnt;
-	UINT64 moves;
+	MoveList *iter;
+	MoveList *previous;
+	MoveList *idx;
 
-	g_empty = empty;
-	moves = CreateMoves(bk, wh, &move_cnt);
-	StoreMovelist(movelist, bk, wh, moves);
+	iter = moves->next;
+	previous = moves;
 
-	if (move_cnt == 1)
+	while (iter->move.pos != pos)
 	{
-		return 1ULL << (movelist->next->move.pos);
+		previous = iter;
+		iter = iter->next;
+	}
+	
+	idx = previous->next;
+	previous->next = iter->next;
+
+	return idx;
+}
+
+
+
+void RestoreMoveList(MoveList *moves, INT32 pos, MoveList *idx)
+{
+	MoveList *iter;
+	MoveList *previous;
+
+	iter = moves;
+	previous = NULL;
+
+	while (iter != NULL && iter < idx)
+	{
+		previous = iter;
+		iter = iter->next;
 	}
 
-	SortMoveListBest(movelist, bk, wh, g_hash, empty,
-		NEGAMIN, NEGAMAX, color);
-
-	// 次善手と最善手との誤差が-2以下の時のみ次善手を打つ
-	if (movelist->next->move.score - movelist->next->next->move.score <= 10000)
-	{
-		return 1ULL << (movelist->next->next->move.pos);
-	}
-
-	return 1ULL << (movelist->next->move.pos);
-
+	if(previous != NULL) previous->next = idx;
+	idx->next = iter;
 }

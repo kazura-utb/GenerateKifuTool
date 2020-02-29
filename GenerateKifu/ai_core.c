@@ -5,7 +5,6 @@
 ****************************************************************************/
 
 #include "stdafx.h"
-#include <time.h>
 #include "board.h"
 #include "move.h"
 #include "book.h"
@@ -18,8 +17,9 @@
 
 #define KZ_EXPORT __declspec(dllexport)
 
-BOOL m_BookFlag;
+KZ_EXPORT void KZ_ReleaseBook();
 
+BOOL m_BookFlag;
 int g_func_count = 0;
 
 /***************************************************************************
@@ -30,7 +30,7 @@ int g_func_count = 0;
 KZ_EXPORT BOOL KZ_LibInit()
 {
 	BOOL result;
-	
+
 	// DLLのロード
 	result = AlocMobilityFunc();
 
@@ -94,8 +94,8 @@ KZ_EXPORT UINT64 KZ_GetCpuMove(UINT64 bk, UINT64 wh, CPUCONFIG *cpuConfig)
 	// カウントリセット(カウントリセットは以降の処理との順番入れ替え×)
 	g_countNode = 0;
 	// CPUメッセージ初期化
-	//g_set_message_funcptr[0](" ");
-	//g_set_message_funcptr[1](" ");
+	g_set_message_funcptr[0](" ");
+	g_set_message_funcptr[1](" ");
 
 	emptyNum = CountBit(~(bk | wh));
 	turn = 60 - emptyNum;
@@ -109,7 +109,7 @@ KZ_EXPORT UINT64 KZ_GetCpuMove(UINT64 bk, UINT64 wh, CPUCONFIG *cpuConfig)
 	{
 		// 定石データから着手
 		m_BookFlag = TRUE;
-		move = GetMoveFromBooks(bk, wh, cpuConfig->color, 
+		move = GetMoveFromBooks(bk, wh, cpuConfig->color,
 			cpuConfig->bookVariability, turn);
 	}
 
@@ -179,6 +179,16 @@ KZ_EXPORT void KZ_SendAbort()
 }
 
 /***************************************************************************
+* Name  : KZ_SendAbort
+* Brief : AIスレッドに中断命令を送信
+* Return: 着手可能位置のビット列
+****************************************************************************/
+KZ_EXPORT int KZ_GetIsAbort()
+{
+	return g_AbortFlag;
+}
+
+/***************************************************************************
 * Name  : KZ_CountBit
 * Brief : １が立っているビット数を数える
 * Args  : bit １が立っているビットを数える対象のビット列
@@ -194,11 +204,11 @@ KZ_EXPORT UINT32 KZ_CountBit(UINT64 bit)
 * Brief : AIのメッセージを設定するデリゲートをC側に渡す
 * Args  : デリゲートのポインタ
 ****************************************************************************/
-//KZ_EXPORT void KZ_EntryFunction(SetMessageToGUI ptr)
-//{
-//	g_set_message_funcptr[g_func_count] = ptr;
-//	g_func_count++;
-//}
+KZ_EXPORT void KZ_EntryFunction(SetMessageToGUI ptr)
+{
+	g_set_message_funcptr[g_func_count] = ptr;
+	g_func_count++;
+}
 
 /***************************************************************************
 * Name  : KZ_ReleaseHash
@@ -208,6 +218,7 @@ KZ_EXPORT void KZ_ReleaseHash()
 {
 	if (g_hash != NULL)
 	{
+		HashClear(g_hash);
 		HashDelete(g_hash);
 		g_hash = NULL;
 	}
@@ -219,9 +230,9 @@ KZ_EXPORT void KZ_ReleaseHash()
 ****************************************************************************/
 KZ_EXPORT void KZ_ReleaseBook()
 {
-	if (g_bookTree.child != NULL)
+	if (g_bookTreeRoot != NULL)
 	{
-		BookFree(g_bookTree.child);
-		g_bookTree.child = NULL;
+		BookFree(g_bookTreeRoot);
+		g_bookTreeRoot = NULL;
 	}
 }

@@ -187,3 +187,6 @@ FakesAssemblies/
 GeneratedArtifacts/
 _Pvt_Extensions/
 ModelManifest.xml
+/GenerateKifu/mobility32.dll__
+/.vs/GenerateKifu/v15/Browse.VC.db
+/.vs/GenerateKifu/v15/Browse.VC.opendb
