@@ -388,16 +388,8 @@ INT32 doDatabaseMoves(st_db* db, UINT64 *bk, UINT64 *wh)
 		color ^= 1;
 	}
 
-	if (color == BLACK)
-	{
-		*bk = l_bk;
-		*wh = l_wh;
-	}
-	else
-	{
-		*bk = l_wh;
-		*wh = l_bk;
-	}
+	*bk = l_bk;
+	*wh = l_wh;
 
 	return i / 2;
 }
