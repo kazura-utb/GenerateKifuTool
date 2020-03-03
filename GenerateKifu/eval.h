@@ -25,6 +25,7 @@
 
 extern UINT8 posEval[64];
 extern INT32 g_evaluation;
+extern INT32 g_evaluation_first;
 
 extern UINT64 a1;			/* a1 */
 extern UINT64 a2;			/* a2 */

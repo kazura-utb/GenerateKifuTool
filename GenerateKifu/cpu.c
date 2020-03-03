@@ -435,6 +435,19 @@ UINT64 GetMoveFromAI(UINT64 bk, UINT64 wh, UINT32 emptyNum, CPUCONFIG *cpuConfig
 		g_limitDepth = emptyNum;
 		g_infscore = INF_SCORE;
 		g_evaluation = SearchExact(l_bk, l_wh, emptyNum, cpuConfig->color);
+		if (emptyNum == cpuConfig->exactDepth) g_evaluation_first = g_evaluation;
+		else if (abs(g_evaluation) != abs(g_evaluation_first))
+		{
+			printf("Illigal eval at exact...resaerch after clear hash.\n");
+			HashClear(g_hash);
+			HashClear(g_pvHash);
+			g_evaluation = SearchExact(l_bk, l_wh, emptyNum, cpuConfig->color);
+			if (g_evaluation != g_evaluation_first)
+			{
+				printf("Illigal eval at exact...may be BUG.\n");
+				return -1;
+			}
+		}
 	}
 	else
 	{

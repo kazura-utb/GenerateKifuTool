@@ -223,6 +223,7 @@ UINT8 posEval[64] =
 };
 
 INT32 g_evaluation;
+INT32 g_evaluation_first;
 
 /* function empty 0 or end leave empty */
 INT32(*GetEndScore[])(UINT64 bk, UINT64 wh, INT32 empty) = {
