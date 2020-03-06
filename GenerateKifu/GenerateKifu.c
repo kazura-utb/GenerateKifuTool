@@ -18,12 +18,17 @@
 
 
 #define EXACT_SEARCH_DEPTH 22
-#define MIDDLE_SEARCH_DEPTH 10
+#define MIDDLE_SEARCH_DEPTH 12
 
 //#define RANDOM10_ENABLE
 #define DATABASE_ENABLE
 
 #ifdef DATABASE_ENABLE
+
+char ggg[10528056];
+
+UINT64 g_count_sum;
+INT32  g_done_moves;
 
 typedef struct
 {
@@ -307,6 +312,11 @@ UINT64 RandomMove(UINT64 bk, UINT64 wh, INT32 empty, UINT32 color)
 	if (color == WHITE) swap(&l_bk, &l_wh);
 
 	moves = CreateMoves(l_bk, l_wh, &count);
+
+	//g_count_sum += count;
+	//g_done_moves++;
+	//printf("Num of random moves average = %lf\n", g_count_sum / (double)g_done_moves);
+
 	if (count != 0)
 	{
 		rnd = genrand_int32() % count;
@@ -403,11 +413,13 @@ int main(int argc, char* argv[])
 	UINT64     bk, wh, move;
 	CPUCONFIG  cpuConfig = {0};
 	INT32      score, pos, empty, modval, eval, rnd, solveColor;
+	INT32      rnd_b, rnd_w;
 	char       asciiLine[256];
 	BOOL       boolret;
 	UINT32     error1cnt = 0;
 	UINT32     error2cnt = 0;
 	UINT32     error3cnt = 0;
+	INT32      b_eval;
 #ifdef DATABASE_ENABLE
 	INT32      turn;
 	st_db     *db_ptr;
@@ -432,6 +444,36 @@ int main(int argc, char* argv[])
 	g_mpcFlag = TRUE;
 
 	init_genrand((UINT32)time(NULL));
+
+#if 0
+	// 自己対局シミュ
+	int n = 0;
+	int c = 0;
+	int end = 0;
+	while (end < 500000)
+	{
+		n++;
+		end++;
+		rnd = genrand_int32() % 10528056;
+		if (ggg[rnd] == 0)
+		{
+			ggg[rnd] = 1;
+		}
+		else
+		{
+			c++;
+			if ((c % 100) == 0)
+			{
+				printf("At %d, Collision rate = %lf%%, end = %d\n", n, (c / (double)n) * 100, end);
+			}
+			end--;
+		}
+	}
+	printf("At %d, Collision rate = %lf%%, end = %d\n", n, (c / (double)n) * 100, end);
+	printf("200万局の収集までにかかったループ数 : %d\n", n);
+
+	exit(1);
+#endif
 
 #ifdef DATABASE_ENABLE
 	rnd = 0;
@@ -467,7 +509,7 @@ int main(int argc, char* argv[])
 		rnd = genrand_int32() % (sizeof(database_ascii) / sizeof(st_db));
 	    db_ptr = &database_ascii[rnd];
 		db_len = strlen(db_ptr->line);
-		printf("game = %d(%s) ", i, db_ptr->name);
+		printf("game = %d  (%s) --> ", i, db_ptr->name);
 #else
 		rnd = 10; // 開始ランダム
 		printf("game = %d ", i);
@@ -505,12 +547,12 @@ int main(int argc, char* argv[])
 				pass = 0;
 				cpuConfig.color ^= turn % 2;
 				db_ptr = NULL;
-				// ランダム２連打のため、経過ターン数から完全読みまでの間の
-				// 1手手前までの範囲にする必要がある
-				rnd = (genrand_int32() % (empty - (EXACT_SEARCH_DEPTH + 1))) + turn;
+				// 黒と白のランダム着手ターン数の決定
+				rnd_b = (genrand_int32() % (empty - EXACT_SEARCH_DEPTH)) + turn;
+				while((rnd_w = (genrand_int32() % (empty - EXACT_SEARCH_DEPTH)) + turn) == rnd_b);
 				continue;
 			}
-			else if (60 - empty == rnd || 60 - empty == rnd + 1)
+			else if (60 - empty == rnd_b || 60 - empty == rnd_w)
 			{
 				// ランダム着手
 				move = RandomMove(bk, wh, empty, cpuConfig.color);
@@ -524,9 +566,48 @@ int main(int argc, char* argv[])
 #endif
 			else
 			{
-				// AI着手
+#if 0
+				if (abs(rnd_b - rnd_w) == 1)
+				{
+					if ((60 - empty == rnd_b + 1 || 60 - empty == rnd_w + 1))
+					{
+						b_eval = KZ_GetLastEvaluation() * (1 - 2 * cpuConfig.color);
+						move = GetMoveFromAI(bk, wh, empty, &cpuConfig);
+						solveColor = cpuConfig.color;
+						eval = KZ_GetLastEvaluation() * (1 - 2 * cpuConfig.color);
+						printf("(bk&wh rnd) eval = %.2lf --> %.2lf ", b_eval / (double)EVAL_ONE_STONE, eval / (double)EVAL_ONE_STONE);
+					}
+					else
+					{
+						move = GetMoveFromAI(bk, wh, empty, &cpuConfig);
+						solveColor = cpuConfig.color;
+					}
+				}
+				else if (60 - empty == rnd_b + 1)
+				{
+					b_eval = KZ_GetLastEvaluation() * (1 - 2 * cpuConfig.color);
+					move = GetMoveFromAI(bk, wh, empty, &cpuConfig);
+					solveColor = cpuConfig.color;
+					eval = KZ_GetLastEvaluation() * (1 - 2 * cpuConfig.color);
+					printf("(bk rnd) eval = %.2lf --> %.2lf ", b_eval / (double)EVAL_ONE_STONE, eval / (double)EVAL_ONE_STONE);
+				}
+				else if(60 - empty == rnd_w + 1)
+				{
+					b_eval = KZ_GetLastEvaluation() * (1 - 2 * cpuConfig.color);
+					move = GetMoveFromAI(bk, wh, empty, &cpuConfig);
+					solveColor = cpuConfig.color;
+					eval = KZ_GetLastEvaluation() * (1 - 2 * cpuConfig.color);
+					printf("(wh rnd) eval = %.2lf --> %.2lf ", b_eval / (double)EVAL_ONE_STONE, eval / (double)EVAL_ONE_STONE);
+				}
+				else
+				{
+					move = GetMoveFromAI(bk, wh, empty, &cpuConfig);
+					solveColor = cpuConfig.color;
+				}
+#else
 				move = GetMoveFromAI(bk, wh, empty, &cpuConfig);
 				solveColor = cpuConfig.color;
+#endif
 			}
 
 			if (move == MOVE_PASS)
@@ -630,9 +711,11 @@ int main(int argc, char* argv[])
 
 		asciiLine[addr++] = ' ';
 		addr += sprintf_s(&asciiLine[addr], sizeof(asciiLine) - addr, "%d", score);
-		addr += sprintf_s(&asciiLine[addr], sizeof(asciiLine) - addr, " %d", 10);
+		if (rnd_b > rnd_w) rnd = rnd_w;
+		else rnd = rnd_b;
+		addr += sprintf_s(&asciiLine[addr], sizeof(asciiLine) - addr, " %d", rnd); // rnd + 1 --> end random moves
 		asciiLine[addr] = '\0';
-		printf("eval = %d, score = %d, %llx, %llx\n", eval, score, bk, wh);
+		printf("score = %d\n", score);
 
 		// asciiLineをファイルに書き込み
 #if 1
